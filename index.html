@@ -109,6 +109,12 @@
     border: 1px solid rgba(255,255,255,.14);
     padding: 13px 20px;
   }
+  .btn-edit.active {
+    background: linear-gradient(135deg, #5b8cff, #8a5bff);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 12px 26px -14px rgba(108,120,255,.95);
+  }
   .btn-sm {
     font-size: 14px;
     padding: 9px 16px;
@@ -121,7 +127,7 @@
     gap: 10px;
     flex-wrap: wrap;
   }
-  .quick .btn { flex: 1 1 120px; }
+  .quick .btn { flex: 1 1 110px; }
 
   /* ---------- 搜索 ---------- */
   .search {
@@ -178,6 +184,76 @@
     font-size: 11px;
     opacity: .95;
   }
+
+  /* ---------- 编辑模式 ---------- */
+  .edit-cell {
+    position: relative;
+    display: flex;
+    border-radius: 16px;
+    background: rgba(91,140,255,.08);
+    border: 1.5px dashed rgba(91,140,255,.5);
+    padding: 3px;
+  }
+  .edit-input {
+    width: 100%;
+    min-width: 0;
+    padding: 13px 6px 12px;
+    border: none;
+    border-radius: 12px;
+    background: transparent;
+    color: #dfe5f7;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.3;
+    text-align: center;
+    outline: none;
+    transition: background .18s;
+  }
+  .edit-input:focus { background: rgba(91,140,255,.18); color: #fff; }
+
+  .edit-del {
+    position: absolute;
+    top: -7px;
+    right: -7px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #ff5b7f;
+    color: #fff;
+    border: 2px solid #0f1226;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    padding: 0;
+  }
+  .edit-del:active { transform: scale(.92); }
+
+  .add-student {
+    width: 100%;
+    padding: 14px;
+    border-radius: 14px;
+    border: 1.5px dashed rgba(255,255,255,.25);
+    background: transparent;
+    color: #9aa5c4;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .18s, border-color .18s, color .18s;
+  }
+  .add-student:hover { background: rgba(255,255,255,.05); border-color: rgba(91,140,255,.5); color: #cfd8ff; }
+  .add-student:active { transform: scale(.99); }
+
+  .edit-hint {
+    display: none;
+    text-align: center;
+    font-size: 12.5px;
+    color: #8d97b8;
+  }
+  .edit-hint.show { display: block; }
 
   /* ---------- 面板 ---------- */
   .panel {
@@ -379,11 +455,16 @@
   <div class="quick">
     <button class="btn btn-primary" id="allPresent">全部到齐</button>
     <button class="btn btn-ghost" id="allAbsent">全部未到</button>
+    <button class="btn btn-ghost btn-edit" id="editBtn">编辑姓名</button>
   </div>
+
+  <p class="edit-hint" id="editHint">编辑模式：直接修改姓名，失焦自动保存；点右上角 × 删除，改完点「完成编辑」</p>
 
   <input class="search" id="search" placeholder="搜索姓名…" autocomplete="off" />
 
   <section class="grid" id="grid"></section>
+
+  <button class="add-student" id="addStudent" style="display:none;">+ 添加学生</button>
 
   <details class="panel" open>
     <summary>
@@ -407,7 +488,7 @@
   </details>
 
   <details class="panel">
-    <summary>名单管理</summary>
+    <summary>批量编辑名单</summary>
     <div class="panel-body">
       <p class="panel-tip">每行一个名字，保存后会按新名单重新统计。</p>
       <textarea id="rosterInput" spellcheck="false"></textarea>
@@ -461,6 +542,9 @@
   const searchEl    = $("search");
   const datePicker  = $("datePicker");
   const absentList  = $("absentList");
+  const editBtn     = $("editBtn");
+  const editHint    = $("editHint");
+  const addBtn      = $("addStudent");
 
   /* ================= 工具 ================= */
   function fmtDate(d) {
@@ -490,7 +574,6 @@
         .then(() => toast(okMsg || "已复制"))
         .catch(() => toast("复制失败，请手动选择"));
     } else {
-      // 兼容旧浏览器
       const ta = document.createElement("textarea");
       ta.value = text;
       ta.style.position = "fixed";
@@ -508,6 +591,7 @@
   let dateStr = fmtDate(new Date());
   let present = new Set();
   let keyword = "";
+  let editing = false;
 
   function loadRoster() {
     try {
@@ -517,6 +601,10 @@
       }
     } catch (e) { /* 忽略 */ }
     return DEFAULT_ROSTER.slice();
+  }
+
+  function persistRoster() {
+    try { localStorage.setItem(ROSTER_KEY, JSON.stringify(roster)); } catch (e) { /* 忽略 */ }
   }
 
   /* ---- 已提交记录 ---- */
@@ -540,7 +628,6 @@
       if (raw !== null) arr = JSON.parse(raw);
     } catch (e) { arr = null; }
 
-    // 草稿不存在时，尝试从已提交记录恢复
     if (!Array.isArray(arr)) {
       const rec = loadRecords().find((r) => r.date === dateStr);
       arr = rec ? rec.present.slice() : [];
@@ -557,21 +644,57 @@
   /* ================= 渲染 ================= */
   function renderGrid() {
     grid.innerHTML = "";
-    roster.forEach((name) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "student" + (present.has(name) ? " present" : "");
-      btn.dataset.name = name;
-      btn.textContent = name;
-      grid.appendChild(btn);
-    });
+
+    if (editing) {
+      roster.forEach((name) => {
+        const cell = document.createElement("div");
+        cell.className = "edit-cell";
+        cell.dataset.name = name;
+
+        const input = document.createElement("input");
+        input.className = "edit-input";
+        input.type = "text";
+        input.value = name;
+        input.maxLength = 16;
+        input.dataset.old = name;
+        input.setAttribute("aria-label", "编辑姓名");
+        input.addEventListener("blur", () => commitRename(input));
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+          else if (e.key === "Escape") { input.value = input.dataset.old; input.blur(); }
+        });
+
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "edit-del";
+        del.textContent = "×";
+        del.title = "删除该学生";
+        // 阻止 input 失焦触发改名
+        del.addEventListener("pointerdown", (e) => e.preventDefault());
+        del.addEventListener("click", () => removeStudent(input.dataset.old));
+
+        cell.appendChild(input);
+        cell.appendChild(del);
+        grid.appendChild(cell);
+      });
+    } else {
+      roster.forEach((name) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "student" + (present.has(name) ? " present" : "");
+        btn.dataset.name = name;
+        btn.textContent = name;
+        grid.appendChild(btn);
+      });
+    }
+
     applyFilter();
   }
 
   function applyFilter() {
     const kw = keyword.trim();
     Array.prototype.forEach.call(grid.children, (el) => {
-      el.style.display = (!kw || el.dataset.name.indexOf(kw) !== -1) ? "" : "none";
+      el.style.display = (!kw || (el.dataset.name || "").indexOf(kw) !== -1) ? "" : "none";
     });
   }
 
@@ -672,7 +795,98 @@
     renderRecords();
   }
 
-  /* ================= 交互 ================= */
+  /* ================= 编辑姓名 ================= */
+  function setEditing(on) {
+    editing = on;
+    editBtn.textContent = on ? "完成编辑" : "编辑姓名";
+    editBtn.classList.toggle("active", on);
+    editHint.classList.toggle("show", on);
+    addBtn.style.display = on ? "block" : "none";
+    renderGrid();
+  }
+
+  function commitRename(input) {
+    const oldName = input.dataset.old;
+    const newName = input.value.trim();
+
+    if (newName === oldName) { input.value = oldName; return; }
+    if (!newName) {
+      toast("姓名不能为空");
+      input.value = oldName;
+      return;
+    }
+    if (roster.indexOf(newName) !== -1) {
+      toast("「" + newName + "」已存在，不能重复");
+      input.value = oldName;
+      return;
+    }
+
+    const idx = roster.indexOf(oldName);
+    if (idx === -1) { input.value = oldName; return; }
+
+    roster[idx] = newName;
+    if (present.has(oldName)) {
+      present.delete(oldName);
+      present.add(newName);
+      saveDay();
+    }
+    persistRoster();
+
+    input.dataset.old = newName;
+    input.parentElement.dataset.name = newName;
+
+    updateStats();
+    renderAbsent();
+    toast("已改为「" + newName + "」");
+  }
+
+  function removeStudent(name) {
+    if (!confirm("确定删除「" + name + "」吗？")) return;
+
+    const idx = roster.indexOf(name);
+    if (idx === -1) return;
+
+    roster.splice(idx, 1);
+    if (present.has(name)) {
+      present.delete(name);
+      saveDay();
+    }
+    persistRoster();
+
+    renderGrid();
+    updateStats();
+    renderAbsent();
+    toast("已删除「" + name + "」");
+  }
+
+  function addStudent() {
+    let base = "新同学";
+    let name = base;
+    let i = 1;
+    while (roster.indexOf(name) !== -1) {
+      name = base + (++i);
+    }
+
+    roster.push(name);
+    persistRoster();
+
+    renderGrid();
+    updateStats();
+    renderAbsent();
+
+    // 聚焦新添加的输入框
+    const last = grid.lastElementChild;
+    if (last) {
+      const inp = last.querySelector(".edit-input");
+      if (inp) { inp.focus(); inp.select(); }
+    }
+    toast("已添加，直接输入姓名即可");
+  }
+
+  editBtn.addEventListener("click", () => setEditing(!editing));
+  addBtn.addEventListener("click", addStudent);
+
+  /* ================= 签到交互 ================= */
   function toggle(name, el) {
     if (present.has(name)) present.delete(name);
     else present.add(name);
@@ -683,6 +897,7 @@
   }
 
   grid.addEventListener("click", (e) => {
+    if (editing) return;              // 编辑模式下不触发签到
     const el = e.target.closest(".student");
     if (!el) return;
     toggle(el.dataset.name, el);
@@ -715,8 +930,7 @@
   $("copyAbsent").addEventListener("click", () => {
     const left = roster.filter((n) => !present.has(n));
     if (!left.length) { toast("全员到齐，没有未到人员"); return; }
-    const text = "未到名单（" + dateStr + "）：\n" + left.join("、");
-    copyText(text, "已复制未到名单");
+    copyText("未到名单（" + dateStr + "）：\n" + left.join("、"), "已复制未到名单");
   });
 
   /* ---- 提交签到 ---- */
@@ -729,7 +943,7 @@
 
     const rec = {
       date: dateStr,
-      roster: roster.slice(),   // 名单快照，防止以后改名单影响历史
+      roster: roster.slice(),
       present: presentList,
       submittedAt: Date.now()
     };
@@ -746,6 +960,7 @@
       : "已提交 " + dateStr + " 的签到记录");
   });
 
+  /* ---- 批量保存名单 ---- */
   $("saveRoster").addEventListener("click", () => {
     const names = $("rosterInput").value
       .split("\n")
@@ -757,8 +972,7 @@
     const dup = names.length !== new Set(names).size;
     roster = names;
     present = new Set([...present].filter((n) => roster.indexOf(n) !== -1));
-
-    try { localStorage.setItem(ROSTER_KEY, JSON.stringify(roster)); } catch (e) { /* 忽略 */ }
+    persistRoster();
     saveDay();
 
     renderAll();
