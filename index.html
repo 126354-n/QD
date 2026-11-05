@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>班级签到</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background:
+      radial-gradient(1200px 800px at 15% -10%, #2b3a7a 0%, transparent 60%),
+      radial-gradient(900px 700px at 105% 105%, #4a1f6b 0%, transparent 55%),
+      #0f1226;
+    color: #e9ecf5;
+    display: flex;
+    justify-content: center;
+    padding: 20px 14px 40px;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 620px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* ---------- 头部 ---------- */
+  .header { text-align: center; }
+  .header h1 {
+    font-size: 21px;
+    font-weight: 800;
+    letter-spacing: .05em;
+  }
+  .date-row {
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  input[type="date"] {
+    font-family: inherit;
+    font-size: 14px;
+    color: #cfd8ff;
+    background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 11px;
+    padding: 8px 12px;
+    outline: none;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(.8);
+    cursor: pointer;
+  }
+
+  .stat {
+    margin-top: 12px;
+    font-size: 13px;
+    color: #9aa5c4;
+    line-height: 1.6;
+  }
+  .stat b { font-size: 15px; font-weight: 800; margin: 0 1px; }
+  .stat b.ok { color: #39e0a0; }
+  .stat b.no { color: #ff7b95; }
+  .stat b.rate { color: #cfd8ff; }
+
+  .bar {
+    margin-top: 10px;
+    height: 8px;
+    border-radius: 99px;
+    background: rgba(255,255,255,.1);
+    overflow: hidden;
+  }
+  .bar-in {
+    height: 100%;
+    width: 0;
+    border-radius: 99px;
+    background: linear-gradient(90deg, #2fd18c, #5b8cff);
+    transition: width .3s ease;
+  }
+
+  /* ---------- 按钮 ---------- */
+  .btn {
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: .03em;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: transform .14s ease, box-shadow .2s ease, background .2s ease;
+  }
+  .btn:active { transform: translateY(1px) scale(.99); }
+
+  .btn-primary {
+    color: #fff;
+    background: linear-gradient(135deg, #17a673, #2fd18c);
+    box-shadow: 0 12px 26px -14px rgba(47,209,140,.9);
+    padding: 13px 20px;
+  }
+  .btn-ghost {
+    background: rgba(255,255,255,.08);
+    color: #cfd8ff;
+    border: 1px solid rgba(255,255,255,.14);
+    padding: 13px 20px;
+  }
+  .btn-sm {
+    font-size: 14px;
+    padding: 9px 16px;
+    border-radius: 11px;
+    width: auto;
+  }
+
+  .quick {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .quick .btn { flex: 1 1 120px; }
+
+  /* ---------- 搜索 ---------- */
+  .search {
+    width: 100%;
+    font-family: inherit;
+    font-size: 15px;
+    color: #e9ecf5;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.13);
+    border-radius: 14px;
+    padding: 13px 16px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .search:focus { border-color: #4f8cff; }
+  .search::placeholder { color: #6f7a9c; }
+
+  /* ---------- 学生卡片 ---------- */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+    gap: 10px;
+  }
+
+  .student {
+    position: relative;
+    padding: 17px 6px 15px;
+    border-radius: 16px;
+    background: rgba(255,255,255,.06);
+    border: 1.5px solid rgba(255,255,255,.12);
+    color: #dfe5f7;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.3;
+    text-align: center;
+    word-break: break-word;
+    cursor: pointer;
+    transition: background .18s, border-color .18s, transform .12s, color .18s, box-shadow .2s;
+  }
+  .student:active { transform: scale(.95); }
+
+  .student.present {
+    background: linear-gradient(135deg, #17a673, #2fd18c);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 10px 24px -14px rgba(47,209,140,.95);
+  }
+  .student.present::after {
+    content: "✓";
+    position: absolute;
+    top: 3px;
+    right: 7px;
+    font-size: 11px;
+    opacity: .95;
+  }
+
+  /* ---------- 面板 ---------- */
+  .panel {
+    border-radius: 18px;
+    background: rgba(255,255,255,.045);
+    border: 1px solid rgba(255,255,255,.1);
+    overflow: hidden;
+  }
+  .panel summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 15px 17px;
+    font-size: 14.5px;
+    font-weight: 700;
+    color: #c9d3f5;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    user-select: none;
+  }
+  .panel summary::-webkit-details-marker { display: none; }
+  .panel summary::after {
+    content: "▾";
+    font-size: 13px;
+    color: #7d88ab;
+    transition: transform .22s ease;
+  }
+  .panel[open] summary::after { transform: rotate(180deg); }
+
+  .panel-body {
+    padding: 0 17px 17px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .panel-tip { font-size: 12.5px; color: #8d97b8; }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .chip {
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: 99px;
+    background: rgba(255,123,149,.14);
+    border: 1px solid rgba(255,123,149,.35);
+    color: #ffb3c3;
+  }
+  .chip.all-good {
+    background: rgba(47,209,140,.14);
+    border-color: rgba(47,209,140,.4);
+    color: #7bf0c0;
+  }
+
+  /* ---------- 历史记录 ---------- */
+  .records { display: flex; flex-direction: column; gap: 8px; }
+  .record {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 15px;
+    border-radius: 13px;
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.1);
+    cursor: pointer;
+    transition: background .18s, border-color .18s;
+  }
+  .record:hover { background: rgba(255,255,255,.09); border-color: rgba(91,140,255,.4); }
+  .record:active { transform: scale(.99); }
+  .record-date { font-weight: 700; font-size: 14.5px; }
+  .record-sub { font-size: 12px; color: #8d97b8; margin-top: 3px; }
+  .record-rate { font-size: 16px; font-weight: 800; color: #7bf0c0; flex: none; }
+  .empty { font-size: 13px; color: #5f6989; }
+
+  textarea {
+    width: 100%;
+    min-height: 140px;
+    resize: vertical;
+    padding: 13px;
+    border-radius: 13px;
+    border: 1px solid rgba(255,255,255,.13);
+    background: rgba(0,0,0,.28);
+    color: #e9ecf5;
+    font-family: inherit;
+    font-size: 15px;
+    line-height: 1.7;
+    outline: none;
+    transition: border-color .2s;
+  }
+  textarea:focus { border-color: #4f8cff; }
+
+  /* ---------- 模态框 ---------- */
+  .modal-mask {
+    position: fixed;
+    inset: 0;
+    background: rgba(8,10,22,.74);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: none;
+    place-items: center;
+    padding: 20px;
+    z-index: 100;
+  }
+  .modal-mask.show { display: grid; }
+  .modal {
+    width: 100%;
+    max-width: 440px;
+    max-height: 82vh;
+    overflow: auto;
+    border-radius: 22px;
+    background: #191f38;
+    border: 1px solid rgba(255,255,255,.12);
+    box-shadow: 0 30px 80px -30px #000;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .modal-date { font-size: 18px; font-weight: 800; }
+  .modal-sub { font-size: 12.5px; color: #8d97b8; margin-top: 4px; }
+  .modal-close {
+    flex: none;
+    width: 32px; height: 32px;
+    border-radius: 10px;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.14);
+    color: #cfd8ff;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .modal-close:active { transform: scale(.95); }
+  .modal-stats { display: flex; gap: 8px; flex-wrap: wrap; }
+  .stat-box {
+    flex: 1 1 82px;
+    padding: 10px;
+    border-radius: 12px;
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.09);
+    text-align: center;
+  }
+  .stat-box .v { font-size: 18px; font-weight: 800; }
+  .stat-box .k { font-size: 11.5px; color: #8d97b8; margin-top: 2px; }
+  .modal-section-title { font-size: 13px; color: #8d97b8; }
+  .modal-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .modal-actions .btn { flex: 1 1 130px; padding: 11px 14px; font-size: 14px; }
+
+  /* ---------- 提示条 ---------- */
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 32px;
+    transform: translate(-50%, 20px);
+    padding: 12px 22px;
+    border-radius: 14px;
+    background: rgba(28,34,60,.96);
+    border: 1px solid rgba(255,255,255,.15);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s ease, transform .25s ease;
+    box-shadow: 0 18px 40px -18px #000;
+    z-index: 120;
+    max-width: 82vw;
+    text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="header">
+    <h1>📋 班级签到</h1>
+    <div class="date-row">
+      <input type="date" id="datePicker" />
+      <button class="btn btn-primary btn-sm" id="submitBtn">提交签到</button>
+    </div>
+    <p class="stat">
+      应到 <b id="sTotal">0</b> ·
+      已到 <b id="sPresent" class="ok">0</b> ·
+      未到 <b id="sAbsent" class="no">0</b> ·
+      到勤率 <b id="sRate" class="rate">0%</b>
+    </p>
+    <div class="bar"><div class="bar-in" id="barIn"></div></div>
+  </header>
+
+  <div class="quick">
+    <button class="btn btn-primary" id="allPresent">全部到齐</button>
+    <button class="btn btn-ghost" id="allAbsent">全部未到</button>
+  </div>
+
+  <input class="search" id="search" placeholder="搜索姓名…" autocomplete="off" />
+
+  <section class="grid" id="grid"></section>
+
+  <details class="panel" open>
+    <summary>
+      <span>未到名单</span>
+      <span id="absentCount" style="font-weight:600;color:#8d97b8;font-size:13px;"></span>
+    </summary>
+    <div class="panel-body">
+      <div class="chips" id="absentList"></div>
+      <button class="btn btn-ghost" id="copyAbsent">复制未到名单</button>
+    </div>
+  </details>
+
+  <details class="panel" open>
+    <summary>
+      <span>历史签到记录</span>
+      <span id="recordsCount" style="font-weight:600;color:#8d97b8;font-size:13px;"></span>
+    </summary>
+    <div class="panel-body">
+      <div class="records" id="recordsList"></div>
+    </div>
+  </details>
+
+  <details class="panel">
+    <summary>名单管理</summary>
+    <div class="panel-body">
+      <p class="panel-tip">每行一个名字，保存后会按新名单重新统计。</p>
+      <textarea id="rosterInput" spellcheck="false"></textarea>
+      <button class="btn btn-primary" id="saveRoster">保存名单</button>
+    </div>
+  </details>
+</div>
+
+<!-- 历史记录详情模态框 -->
+<div class="modal-mask" id="modalMask">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <div>
+        <div class="modal-date" id="modalDate"></div>
+        <div class="modal-sub" id="modalSub"></div>
+      </div>
+      <button class="modal-close" id="modalClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-stats" id="modalStats"></div>
+    <div class="modal-section-title">未到名单</div>
+    <div class="chips" id="modalAbsent"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="modalCopy">复制未到名单</button>
+      <button class="btn btn-ghost" id="modalDelete" style="color:#ff8fa3;border-color:rgba(255,123,149,.35);">删除记录</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ================= 默认名单：26 人 ================= */
+  const DEFAULT_ROSTER = [
+    "白安泽", "包飞扬", "卜一涵", "单笑然", "冯丽然",
+    "郭津琳", "郭彤嘉", "霍楚晴", "李吉星", "李佳霓",
+    "李嘉玲", "李建东", "李忠旺", "刘佳鑫", "刘嘉怡",
+    "牛雨荣", "秦雨飞", "渠静", "任欣锐", "沈开义",
+    "王颖", "张家铭", "张嘉乐", "张嵩硕", "王正东",
+    "刘昊"
+  ];
+
+  const ROSTER_KEY  = "class-roster-v2";
+  const RECORDS_KEY = "class-checkin-records";
+  const DAY_PREFIX  = "class-checkin:";
+
+  const $ = (id) => document.getElementById(id);
+  const grid        = $("grid");
+  const searchEl    = $("search");
+  const datePicker  = $("datePicker");
+  const absentList  = $("absentList");
+
+  /* ================= 工具 ================= */
+  function fmtDate(d) {
+    const p = (n) => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+  }
+
+  function fmtTime(ts) {
+    const d = new Date(ts);
+    const p = (n) => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) +
+           " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+
+  let toastTimer = null;
+  function toast(msg) {
+    const el = $("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 2000);
+  }
+
+  function copyText(text, okMsg) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => toast(okMsg || "已复制"))
+        .catch(() => toast("复制失败，请手动选择"));
+    } else {
+      // 兼容旧浏览器
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); toast(okMsg || "已复制"); }
+      catch (e) { toast("复制失败，请手动选择"); }
+      document.body.removeChild(ta);
+    }
+  }
+
+  /* ================= 状态 ================= */
+  let roster = loadRoster();
+  let dateStr = fmtDate(new Date());
+  let present = new Set();
+  let keyword = "";
+
+  function loadRoster() {
+    try {
+      const arr = JSON.parse(localStorage.getItem(ROSTER_KEY) || "null");
+      if (Array.isArray(arr) && arr.length) {
+        return arr.map((s) => String(s).trim()).filter(Boolean);
+      }
+    } catch (e) { /* 忽略 */ }
+    return DEFAULT_ROSTER.slice();
+  }
+
+  /* ---- 已提交记录 ---- */
+  function loadRecords() {
+    try {
+      const arr = JSON.parse(localStorage.getItem(RECORDS_KEY) || "[]");
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }
+  function saveRecords(records) {
+    try { localStorage.setItem(RECORDS_KEY, JSON.stringify(records)); } catch (e) { /* 忽略 */ }
+  }
+
+  /* ---- 每日草稿 ---- */
+  function dayKey() { return DAY_PREFIX + dateStr; }
+
+  function loadDay() {
+    let arr = null;
+    try {
+      const raw = localStorage.getItem(dayKey());
+      if (raw !== null) arr = JSON.parse(raw);
+    } catch (e) { arr = null; }
+
+    // 草稿不存在时，尝试从已提交记录恢复
+    if (!Array.isArray(arr)) {
+      const rec = loadRecords().find((r) => r.date === dateStr);
+      arr = rec ? rec.present.slice() : [];
+    }
+    present = new Set(arr.filter((n) => roster.indexOf(n) !== -1));
+  }
+
+  function saveDay() {
+    try {
+      localStorage.setItem(dayKey(), JSON.stringify([...present]));
+    } catch (e) { /* 隐私模式可能失败 */ }
+  }
+
+  /* ================= 渲染 ================= */
+  function renderGrid() {
+    grid.innerHTML = "";
+    roster.forEach((name) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "student" + (present.has(name) ? " present" : "");
+      btn.dataset.name = name;
+      btn.textContent = name;
+      grid.appendChild(btn);
+    });
+    applyFilter();
+  }
+
+  function applyFilter() {
+    const kw = keyword.trim();
+    Array.prototype.forEach.call(grid.children, (el) => {
+      el.style.display = (!kw || el.dataset.name.indexOf(kw) !== -1) ? "" : "none";
+    });
+  }
+
+  function updateStats() {
+    const total = roster.length;
+    const done = roster.filter((n) => present.has(n)).length;
+    const left = total - done;
+    const rate = total ? Math.round((done / total) * 100) : 0;
+
+    $("sTotal").textContent = total;
+    $("sPresent").textContent = done;
+    $("sAbsent").textContent = left;
+    $("sRate").textContent = rate + "%";
+    $("barIn").style.width = rate + "%";
+  }
+
+  function renderAbsent() {
+    const left = roster.filter((n) => !present.has(n));
+    absentList.innerHTML = "";
+
+    $("absentCount").textContent = left.length ? "未到 " + left.length + " 人" : "全员到齐";
+
+    if (!left.length) {
+      const span = document.createElement("span");
+      span.className = "chip all-good";
+      span.textContent = "🎉 全员到齐";
+      absentList.appendChild(span);
+      return;
+    }
+
+    left.forEach((n) => {
+      const span = document.createElement("span");
+      span.className = "chip";
+      span.textContent = n;
+      absentList.appendChild(span);
+    });
+  }
+
+  function renderRecords() {
+    const records = loadRecords();
+    const list = $("recordsList");
+    list.innerHTML = "";
+    $("recordsCount").textContent = records.length ? "共 " + records.length + " 条" : "";
+
+    if (!records.length) {
+      const div = document.createElement("div");
+      div.className = "empty";
+      div.textContent = "还没有提交过签到记录，点上方「提交签到」保存当天记录";
+      list.appendChild(div);
+      return;
+    }
+
+    records.forEach((rec) => {
+      const total = rec.roster.length;
+      const done = rec.present.length;
+      const left = total - done;
+      const rate = total ? Math.round((done / total) * 100) : 0;
+
+      const item = document.createElement("div");
+      item.className = "record";
+      item.setAttribute("role", "button");
+      item.tabIndex = 0;
+
+      const leftBox = document.createElement("div");
+      const dateEl = document.createElement("div");
+      dateEl.className = "record-date";
+      dateEl.textContent = rec.date;
+      const subEl = document.createElement("div");
+      subEl.className = "record-sub";
+      subEl.textContent = "已到 " + done + "/" + total + " · 未到 " + left + " 人";
+      leftBox.appendChild(dateEl);
+      leftBox.appendChild(subEl);
+
+      const rateEl = document.createElement("div");
+      rateEl.className = "record-rate";
+      rateEl.textContent = rate + "%";
+
+      item.appendChild(leftBox);
+      item.appendChild(rateEl);
+
+      item.addEventListener("click", () => openRecord(rec.date));
+      item.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          openRecord(rec.date);
+        }
+      });
+
+      list.appendChild(item);
+    });
+  }
+
+  function renderAll() {
+    $("rosterInput").value = roster.join("\n");
+    renderGrid();
+    updateStats();
+    renderAbsent();
+    renderRecords();
+  }
+
+  /* ================= 交互 ================= */
+  function toggle(name, el) {
+    if (present.has(name)) present.delete(name);
+    else present.add(name);
+    saveDay();
+    el.classList.toggle("present", present.has(name));
+    updateStats();
+    renderAbsent();
+  }
+
+  grid.addEventListener("click", (e) => {
+    const el = e.target.closest(".student");
+    if (!el) return;
+    toggle(el.dataset.name, el);
+  });
+
+  searchEl.addEventListener("input", () => {
+    keyword = searchEl.value;
+    applyFilter();
+  });
+
+  $("allPresent").addEventListener("click", () => {
+    if (!roster.length) { toast("名单为空"); return; }
+    present = new Set(roster);
+    saveDay();
+    renderGrid();
+    updateStats();
+    renderAbsent();
+    toast("已全部标记为到");
+  });
+
+  $("allAbsent").addEventListener("click", () => {
+    present.clear();
+    saveDay();
+    renderGrid();
+    updateStats();
+    renderAbsent();
+    toast("已清空本日签到");
+  });
+
+  $("copyAbsent").addEventListener("click", () => {
+    const left = roster.filter((n) => !present.has(n));
+    if (!left.length) { toast("全员到齐，没有未到人员"); return; }
+    const text = "未到名单（" + dateStr + "）：\n" + left.join("、");
+    copyText(text, "已复制未到名单");
+  });
+
+  /* ---- 提交签到 ---- */
+  $("submitBtn").addEventListener("click", () => {
+    if (!roster.length) { toast("名单为空"); return; }
+
+    const records = loadRecords();
+    const presentList = roster.filter((n) => present.has(n));
+    const existingIdx = records.findIndex((r) => r.date === dateStr);
+
+    const rec = {
+      date: dateStr,
+      roster: roster.slice(),   // 名单快照，防止以后改名单影响历史
+      present: presentList,
+      submittedAt: Date.now()
+    };
+
+    if (existingIdx >= 0) records[existingIdx] = rec;
+    else records.push(rec);
+
+    records.sort((a, b) => b.date.localeCompare(a.date));
+    saveRecords(records);
+    renderRecords();
+
+    toast(existingIdx >= 0
+      ? "已更新 " + dateStr + " 的签到记录"
+      : "已提交 " + dateStr + " 的签到记录");
+  });
+
+  $("saveRoster").addEventListener("click", () => {
+    const names = $("rosterInput").value
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (!names.length) { toast("名单不能为空"); return; }
+
+    const dup = names.length !== new Set(names).size;
+    roster = names;
+    present = new Set([...present].filter((n) => roster.indexOf(n) !== -1));
+
+    try { localStorage.setItem(ROSTER_KEY, JSON.stringify(roster)); } catch (e) { /* 忽略 */ }
+    saveDay();
+
+    renderAll();
+    toast(dup ? "已保存（注意有重名）" : "名单已保存，共 " + roster.length + " 人");
+  });
+
+  datePicker.addEventListener("change", () => {
+    dateStr = datePicker.value || fmtDate(new Date());
+    datePicker.value = dateStr;
+    loadDay();
+    renderGrid();
+    updateStats();
+    renderAbsent();
+    toast("已切换到 " + dateStr);
+  });
+
+  /* ================= 历史记录详情 ================= */
+  let currentRecordDate = null;
+
+  function openRecord(date) {
+    const rec = loadRecords().find((r) => r.date === date);
+    if (!rec) return;
+    currentRecordDate = date;
+
+    const total = rec.roster.length;
+    const done = rec.present.length;
+    const rate = total ? Math.round((done / total) * 100) : 0;
+    const absent = rec.roster.filter((n) => rec.present.indexOf(n) === -1);
+
+    $("modalDate").textContent = rec.date + " 签到记录";
+    $("modalSub").textContent = "提交时间 " + fmtTime(rec.submittedAt || Date.now());
+
+    const stats = $("modalStats");
+    stats.innerHTML = "";
+    [
+      { k: "应到", v: total, color: "" },
+      { k: "已到", v: done, color: "#39e0a0" },
+      { k: "未到", v: absent.length, color: "#ff7b95" },
+      { k: "到勤率", v: rate + "%", color: "#cfd8ff" }
+    ].forEach((s) => {
+      const box = document.createElement("div");
+      box.className = "stat-box";
+      const v = document.createElement("div");
+      v.className = "v";
+      v.textContent = s.v;
+      if (s.color) v.style.color = s.color;
+      const k = document.createElement("div");
+      k.className = "k";
+      k.textContent = s.k;
+      box.appendChild(v);
+      box.appendChild(k);
+      stats.appendChild(box);
+    });
+
+    const absentBox = $("modalAbsent");
+    absentBox.innerHTML = "";
+    if (!absent.length) {
+      const span = document.createElement("span");
+      span.className = "chip all-good";
+      span.textContent = "🎉 全员到齐";
+      absentBox.appendChild(span);
+    } else {
+      absent.forEach((n) => {
+        const span = document.createElement("span");
+        span.className = "chip";
+        span.textContent = n;
+        absentBox.appendChild(span);
+      });
+    }
+
+    $("modalMask").classList.add("show");
+  }
+
+  function closeModal() {
+    $("modalMask").classList.remove("show");
+    currentRecordDate = null;
+  }
+
+  $("modalClose").addEventListener("click", closeModal);
+  $("modalMask").addEventListener("click", (e) => {
+    if (e.target === $("modalMask")) closeModal();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeModal();
+  });
+
+  $("modalCopy").addEventListener("click", () => {
+    if (!currentRecordDate) return;
+    const rec = loadRecords().find((r) => r.date === currentRecordDate);
+    if (!rec) return;
+    const absent = rec.roster.filter((n) => rec.present.indexOf(n) === -1);
+    if (!absent.length) { toast("全员到齐，没有未到人员"); return; }
+    copyText("未到名单（" + rec.date + "）：\n" + absent.join("、"), "已复制未到名单");
+  });
+
+  $("modalDelete").addEventListener("click", () => {
+    if (!currentRecordDate) return;
+    if (!confirm("确定删除 " + currentRecordDate + " 的签到记录吗？此操作不可撤销。")) return;
+
+    let records = loadRecords();
+    records = records.filter((r) => r.date !== currentRecordDate);
+    saveRecords(records);
+    renderRecords();
+    closeModal();
+    toast("已删除该签到记录");
+  });
+
+  /* ================= 启动 ================= */
+  datePicker.value = dateStr;
+  loadDay();
+  renderAll();
+})();
+</script>
+</body>
+</html>
